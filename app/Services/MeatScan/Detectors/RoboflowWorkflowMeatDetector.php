@@ -100,23 +100,25 @@ class RoboflowWorkflowMeatDetector implements MeatDetector
         }
 
         $json = $res->json();
-        if (! is_array($json)) {
+        if (!is_array($json)) {
             throw new RuntimeException('Roboflow workflow returned an invalid response.');
         }
 
-        [$label, $confidence] = $this->extractTopLabelAndConfidence($json);
-        $label = $this->normalizeLabel($label, $labelMap);
-
-        if ($label === 'uncertain' && $confidence <= 0) {
-            // If we cannot extract anything meaningful, fail so failover can handle it.
+        [$extractedLabel, $confidence] = $this->extractTopLabelAndConfidence($json);
+        // Fail only when the response has no class/label at all. Do not use normalized
+        // "uncertain" + confidence: unknown classes normalize to uncertain, and missing
+        // confidence often parses as 0 even when a label was found.
+        if (trim($extractedLabel) === '') {
             throw new RuntimeException('Roboflow workflow response did not contain a recognizable classification.');
         }
+
+        $label = $this->normalizeLabel($extractedLabel, $labelMap);
 
         $confidencePct = max(0, min(100, $confidence <= 1 ? $confidence * 100 : $confidence));
 
         [$explanation, $recs] = $this->explain($label);
 
-        dd(7777, $label, $confidencePct, $explanation, $recs);
+        // dd(555, $label, $confidencePct, $explanation, $recs);
         return new MeatScanResultDto(
             label: $label,
             confidence: round($confidencePct, 2),
