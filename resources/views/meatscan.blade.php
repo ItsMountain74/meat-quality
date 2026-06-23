@@ -981,7 +981,8 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       const fd = new FormData();
       fd.append('image', fileInput.files[0]);
-      const res = await apiFetch('/meat-scans', { method:'POST', body: fd });
+      const uploadRes = await apiFetch('/scans/upload', { method: 'POST', body: fd });
+      const res = await apiFetch('/scans/' + uploadRes.data.id + '/analyze', { method: 'POST' });
       const data = res.data;
 
       const ui = labelToUi(data.label);

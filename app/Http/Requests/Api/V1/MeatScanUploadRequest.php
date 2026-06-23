@@ -4,7 +4,7 @@ namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class MeatScanStoreRequest extends FormRequest
+class MeatScanUploadRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,8 +14,7 @@ class MeatScanStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'image' => ['required', 'file', 'image', 'max:10240'], // 10MB
+            'image' => ['required', 'file', 'image', 'max:10240'],
         ];
     }
 }
-

@@ -1,0 +1,349 @@
+{
+  "info": {
+    "_postman_id": "meatscan-api-v1",
+    "name": "MeatScan API",
+    "description": "MeatScan REST API v1 — auth, profile, and meat freshness scanning.\n\n## Setup\n1. Import this collection into Postman or Insomnia.\n2. Set the `base_url` variable (default: `http://127.0.0.1:8000/api/v1`).\n3. Run **Register** or **Login** — the Bearer token is saved automatically.\n4. Run **Upload Image**, then **Analyze Image** using the saved `scan_id`.\n\nAll JSON responses use: `{ \"success\", \"message\", \"data\" }`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "api_root",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "scan_id",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_root}}/health",
+              "host": ["{{api_root}}"],
+              "path": ["health"]
+            },
+            "description": "Simple liveness check. Returns `{ \"ok\": true }`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.data?.token) {",
+                  "  pm.collectionVariables.set('token', json.data.token);",
+                  "  pm.test('Token saved', () => pm.expect(json.data.token).to.be.a('string'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo User\",\n  \"email\": \"demo@meatscan.test\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Create a new account. Returns a Sanctum Bearer token and user object."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.data?.token) {",
+                  "  pm.collectionVariables.set('token', json.data.token);",
+                  "  pm.test('Token saved', () => pm.expect(json.data.token).to.be.a('string'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@meatscan.test\",\n  \"password\": \"password123\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate with email and password. Returns a Sanctum Bearer token and user object."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profile",
+              "host": ["{{base_url}}"],
+              "path": ["profile"]
+            },
+            "description": "Returns the authenticated user's profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo User Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/profile",
+              "host": ["{{base_url}}"],
+              "path": ["profile"]
+            },
+            "description": "Update profile fields. All fields are optional: `name`, `email`, `password` (+ `password_confirmation`)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Scans",
+      "item": [
+        {
+          "name": "Upload Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.data?.id) {",
+                  "  pm.collectionVariables.set('scan_id', String(json.data.id));",
+                  "  pm.test('Scan ID saved', () => pm.expect(json.data.id).to.be.a('number'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Image file (jpeg, png, etc.). Max 10 MB."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/scans/upload",
+              "host": ["{{base_url}}"],
+              "path": ["scans", "upload"]
+            },
+            "description": "Upload a meat image. Creates a scan with `status: pending`. Select an image file in the Body tab."
+          },
+          "response": []
+        },
+        {
+          "name": "Analyze Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/scans/{{scan_id}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["scans", "{{scan_id}}", "analyze"]
+            },
+            "description": "Run AI analysis on a previously uploaded scan. Uses `scan_id` from Upload Image (or set manually)."
+          },
+          "response": []
+        },
+        {
+          "name": "Scan History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/scans/history?per_page=15&page=1",
+              "host": ["{{base_url}}"],
+              "path": ["scans", "history"],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15",
+                  "description": "Items per page (default: 15)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                }
+              ]
+            },
+            "description": "Paginated list of completed scans for the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Scan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/scans/{{scan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["scans", "{{scan_id}}"]
+            },
+            "description": "Fetch a single scan by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Scan",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/scans/{{scan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["scans", "{{scan_id}}"]
+            },
+            "description": "Delete a scan and its stored image file."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

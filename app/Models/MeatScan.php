@@ -10,10 +10,17 @@ class MeatScan extends Model
 {
     use HasFactory;
 
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_COMPLETED = 'completed';
+
+    public const STATUS_FAILED = 'failed';
+
     protected $fillable = [
         'user_id',
         'image_disk',
         'image_path',
+        'status',
         'label',
         'confidence',
         'explanation',

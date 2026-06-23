@@ -21,8 +21,9 @@ This README is written so **anyone can set up and present the application confid
    - **Explanation** and **Recommendations**
 4. Show the API quickly:
    - `GET /api/health`
-   - `POST /api/v1/meat-scans` (upload image)
-   - `GET /api/v1/meat-scans` (history)
+   - `POST /api/v1/auth/login`
+   - `POST /api/v1/scans/upload` → `POST /api/v1/scans/{id}/analyze`
+   - `GET /api/v1/scans/history`
 
 If external AI keys are missing or the network is unavailable, the app still demonstrates end‑to‑end behavior because detectors are wrapped by a **failover detector** that falls back to **Mock**.
 
@@ -44,8 +45,9 @@ If external AI keys are missing or the network is unavailable, the app still dem
   - UI uploads an image and calls the API at `window.__MEATSCAN_API_BASE__` (defaults to `/api/v1`)
 - **API**
   - `routes/api.php`
-  - Controller: `app/Http/Controllers/Api/V1/MeatScanController.php`
-  - Resource: `app/Http/Resources/MeatScanResource.php`
+  - Controllers: `app/Http/Controllers/Api/V1/*`
+  - Resources: `app/Http/Resources/*`
+  - Postman collection: `docs/MeatScan-API.postman_collection.json`
 - **MeatScan domain**
   - Service: `app/Services/MeatScan/MeatScanService.php`
   - Contract: `app/Services/MeatScan/Contracts/MeatDetector.php`
@@ -183,6 +185,19 @@ Optional keys:
 
 ## API documentation
 
+Import the ready-to-use Postman collection:
+
+```
+docs/MeatScan-API.postman_collection.json
+```
+
+In Postman: **Import → File →** select the JSON above. Set `api_root` / `base_url` if your server is not `http://127.0.0.1:8000`. Run **Register** or **Login** first — the collection auto-saves the Bearer token and scan ID.
+
+**Base URL:** `{APP_URL}/api/v1`  
+**Auth:** Laravel Sanctum Bearer token (`Authorization: Bearer {token}`)
+
+---
+
 ### Response envelope
 
 All API responses follow:
@@ -195,49 +210,224 @@ All API responses follow:
 }
 ```
 
-### `GET /api/health`
+Errors return `"success": false` with an appropriate HTTP status (401, 404, 422, etc.).
 
-Returns:
+Validation errors (422) also include Laravel's standard `errors` object.
+
+---
+
+### Health
+
+#### `GET /api/health`
+
+No authentication required.
 
 ```json
 { "ok": true }
 ```
 
-### `POST /api/v1/meat-scans` (run a scan)
+---
 
-- **Content-Type**: `multipart/form-data`
-- **Body**:
-  - `image` (required, image file, max 10MB)
+### Authentication
 
-Example (PowerShell):
+#### `POST /api/v1/auth/register`
 
-```powershell
-$file = Get-Item ".\sample.jpg"
-curl.exe -X POST "http://127.0.0.1:8000/api/v1/meat-scans" `
-  -H "Accept: application/json" `
-  -F "image=@$($file.FullName)"
+No authentication required.
+
+**Body (JSON):**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `name` | string | yes | Max 255 chars |
+| `email` | string | yes | Must be unique |
+| `password` | string | yes | Min 8 chars |
+| `password_confirmation` | string | yes | Must match `password` |
+| `device_name` | string | no | Defaults to `"mobile"` |
+
+**Response (201):**
+
+```json
+{
+  "success": true,
+  "message": "Registered successfully.",
+  "data": {
+    "token": "1|abc...",
+    "user": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "created_at": "2026-06-23T10:00:00.000000Z",
+      "updated_at": "2026-06-23T10:00:00.000000Z"
+    }
+  }
+}
 ```
 
-Successful response includes:
+#### `POST /api/v1/auth/login`
 
-- `label`: `fresh | spoiled | uncertain`
-- `confidence`: float (0–100)
-- `explanation`: string
-- `recommendations`: array of strings
-- `image_url`: public URL (requires `storage:link`)
-- `scanned_at`: ISO timestamp
+No authentication required.
 
-### `GET /api/v1/meat-scans` (history)
+**Body (JSON):**
 
-Returns a paginated list (15 per page) ordered by `scanned_at` descending.
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `email` | string | yes | |
+| `password` | string | yes | |
+| `device_name` | string | no | Defaults to `"mobile"` |
 
-### `GET /api/v1/meat-scans/{id}` (single scan)
+**Response (200):** Same shape as register (`token` + `user`).
 
-Returns one scan resource.
+**Error (422):** `"Invalid credentials."`
 
-### `DELETE /api/v1/meat-scans/{id}` (delete)
+---
 
-Deletes the scan row (uploaded image file is not currently deleted automatically).
+### Profile
+
+Requires `Authorization: Bearer {token}`.
+
+#### `GET /api/v1/profile`
+
+Returns the authenticated user.
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Profile fetched successfully.",
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "created_at": "...",
+    "updated_at": "..."
+  }
+}
+```
+
+#### `PUT /api/v1/profile` or `PATCH /api/v1/profile`
+
+Update profile. All fields are optional.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | string | Max 255 chars |
+| `email` | string | Must be unique |
+| `password` | string | Min 8 chars |
+| `password_confirmation` | string | Required when changing password |
+
+---
+
+### Scans
+
+All scan endpoints require `Authorization: Bearer {token}`. Scans are scoped to the authenticated user.
+
+#### Scan object shape
+
+```json
+{
+  "id": 12,
+  "status": "completed",
+  "image_url": "http://127.0.0.1:8000/storage/meat-scans/abc.jpg",
+  "label": "fresh",
+  "confidence": 92.5,
+  "explanation": "The meat appears bright red with firm texture.",
+  "recommendations": ["Store below 4°C", "Use within 2 days"],
+  "scanned_at": "2026-06-23T10:00:05.000000Z",
+  "created_at": "2026-06-23T10:00:00.000000Z"
+}
+```
+
+| Field | Values / notes |
+|-------|----------------|
+| `status` | `pending` · `completed` · `failed` |
+| `label` | `fresh` · `spoiled` · `uncertain` (null until analyzed) |
+| `confidence` | 0–100 (null until analyzed) |
+
+#### `POST /api/v1/scans/upload`
+
+Upload a meat image (step 1 of 2).
+
+- **Content-Type:** `multipart/form-data`
+- **Body:** `image` (required, image file, max 10 MB)
+
+**Response (201):** Scan object with `status: "pending"` and null analysis fields.
+
+#### `POST /api/v1/scans/{id}/analyze`
+
+Run AI analysis on a previously uploaded scan (step 2 of 2). No request body.
+
+**Response (200):** Scan object with `status: "completed"` and analysis results.
+
+**Error (422):** Analysis failed (scan `status` set to `failed`).
+
+#### `GET /api/v1/scans/history`
+
+Paginated list of completed scans for the current user, newest first.
+
+**Query params:**
+
+| Param | Default | Notes |
+|-------|---------|-------|
+| `per_page` | 15 | Items per page |
+| `page` | 1 | Page number |
+
+**Response (200):** Paginated collection inside `data`:
+
+```json
+{
+  "success": true,
+  "message": "Scan history fetched successfully.",
+  "data": {
+    "data": [ /* scan objects */ ],
+    "links": { "first": "...", "last": "...", "prev": null, "next": "..." },
+    "meta": { "current_page": 1, "last_page": 3, "per_page": 15, "total": 42 }
+  }
+}
+```
+
+#### `GET /api/v1/scans/{id}`
+
+Fetch a single scan by ID. Returns 404 if the scan does not belong to the user.
+
+#### `DELETE /api/v1/scans/{id}`
+
+Delete a scan and its stored image file. Returns 404 if the scan does not belong to the user.
+
+---
+
+### Typical mobile flow
+
+```
+1. POST /auth/register  (or /auth/login)  →  save token
+2. POST /scans/upload   (multipart image)  →  save scan id
+3. POST /scans/{id}/analyze                →  show results
+4. GET  /scans/history                     →  list past scans
+```
+
+**Example (PowerShell) — login + upload + analyze:**
+
+```powershell
+# Login
+$login = Invoke-RestMethod -Method POST `
+  -Uri "http://127.0.0.1:8000/api/v1/auth/login" `
+  -ContentType "application/json" `
+  -Body '{"email":"demo@meatscan.test","password":"password123"}'
+$token = $login.data.token
+
+# Upload
+$file = Get-Item ".\sample.jpg"
+$upload = curl.exe -s -X POST "http://127.0.0.1:8000/api/v1/scans/upload" `
+  -H "Accept: application/json" `
+  -H "Authorization: Bearer $token" `
+  -F "image=@$($file.FullName)" | ConvertFrom-Json
+$scanId = $upload.data.id
+
+# Analyze
+Invoke-RestMethod -Method POST `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$scanId/analyze" `
+  -Headers @{ Authorization = "Bearer $token"; Accept = "application/json" }
+```
 
 ---
 
@@ -254,9 +444,10 @@ The page sets:
 
 - `window.__MEATSCAN_API_BASE__ = url('/api/v1')`
 
-Then it calls:
+Then it calls (with Bearer token after login):
 
-- `POST /meat-scans` with `FormData` containing the uploaded image
+- `POST /scans/upload` with `FormData` containing the uploaded image
+- `POST /scans/{id}/analyze` to run the AI detector
 
 ### Demo tips (for best results)
 

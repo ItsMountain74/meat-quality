@@ -15,9 +15,10 @@ class MeatScanResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'status' => $this->status,
             'image_url' => Storage::disk($disk)->url($this->image_path),
             'label' => $this->label,
-            'confidence' => (float) $this->confidence,
+            'confidence' => $this->confidence !== null ? (float) $this->confidence : null,
             'explanation' => $this->explanation,
             'recommendations' => $this->recommendations ?? [],
             'scanned_at' => optional($this->scanned_at)?->toISOString(),
